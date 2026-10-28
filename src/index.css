@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+}
+
+:root {
+  --accent: #7dd3fc;
+  --notch-bg: #000000;
+  --fg: #f5f5f7;
+  --muted: rgba(245, 245, 247, 0.55);
+  --faint: rgba(245, 245, 247, 0.28);
+  --card: rgba(255, 255, 255, 0.07);
+  --card-hover: rgba(255, 255, 255, 0.12);
+  --line: rgba(255, 255, 255, 0.1);
+  --good: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --notch-bg: #fafafa;
+  --fg: #111114;
+  --muted: rgba(17, 17, 20, 0.58);
+  --faint: rgba(17, 17, 20, 0.3);
+  --card: rgba(0, 0, 0, 0.05);
+  --card-hover: rgba(0, 0, 0, 0.09);
+  --line: rgba(0, 0, 0, 0.1);
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* The notch window is transparent; only the notch itself paints. */
+body.notch {
+  background: transparent;
+  color: var(--fg);
+}
+
+body.settings {
+  background: #0d0d10;
+  color: #ececf1;
+}
+
+:root[data-theme="light"] body.settings {
+  background: #f4f4f6;
+  color: #17171b;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--faint);
+  border-radius: 9px;
+}
+
+.field {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 5px 9px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field:focus {
+  border-color: var(--accent);
+}
+.field::placeholder {
+  color: var(--faint);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 9px;
+  padding: 5px 10px;
+  background: var(--card);
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+  cursor: default;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--card-hover);
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.btn-accent {
+  background: var(--accent);
+  color: #06121a;
+  font-weight: 600;
+}
+.btn-accent:hover {
+  background: var(--accent);
+  filter: brightness(1.1);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  transition: background 0.15s, transform 0.1s, color 0.15s;
+  color: var(--fg);
+}
+.icon-btn:hover {
+  background: var(--card-hover);
+}
+.icon-btn:active {
+  transform: scale(0.9);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+@keyframes blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(18deg); }
+  40% { transform: rotate(-10deg); }
+  60% { transform: rotate(16deg); }
+  80% { transform: rotate(-6deg); }
+}
+
+@keyframes zz {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.7); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(8px, -10px) scale(1); }
+}

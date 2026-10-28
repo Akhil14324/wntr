@@ -76,8 +76,22 @@ pub fn apply_settings(app: &AppHandle, old: &Value, new: &Value) {
 // Windows + tray
 // ---------------------------------------------------------------------------
 
+// Async on purpose: on Windows, building a webview window from a sync command
+// blocks the event loop, which leaves the new settings window blank and unresponsive.
 #[tauri::command]
-fn open_settings(app: AppHandle, section: Option<String>) -> CmdResult<()> {
+async fn open_settings(app: AppHandle, section: Option<String>) -> CmdResult<()> {
+    show_settings(&app, section)
+}
+
+/// Fire-and-forget version for menu handlers, which run on the main thread.
+fn spawn_settings(app: &AppHandle, section: Option<String>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let _ = show_settings(&app, section);
+    });
+}
+
+fn show_settings(app: &AppHandle, section: Option<String>) -> CmdResult<()> {
     let section = section.unwrap_or_else(|| "general".into());
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.unminimize();
@@ -87,7 +101,7 @@ fn open_settings(app: AppHandle, section: Option<String>) -> CmdResult<()> {
         return Ok(());
     }
     WebviewWindowBuilder::new(
-        &app,
+        app,
         "settings",
         WebviewUrl::App(format!("index.html#settings/{section}").into()),
     )
@@ -177,12 +191,8 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => toggle_notch(app),
-            "settings" => {
-                let _ = open_settings(app.clone(), None);
-            }
-            "about" => {
-                let _ = open_settings(app.clone(), Some("about".into()));
-            }
+            "settings" => spawn_settings(app, None),
+            "about" => spawn_settings(app, Some("about".into())),
             "dnd-30" => set_dnd(app, Some(30)),
             "dnd-60" => set_dnd(app, Some(60)),
             "dnd-tomorrow" => set_dnd(app, Some(-1)),

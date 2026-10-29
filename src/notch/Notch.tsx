@@ -313,7 +313,9 @@ export default function Notch() {
   }, [go, jump, pages, collapseNow]);
 
   // Mouse wheel switches pages unless a list under the cursor can scroll.
-  const wheel = useRef({ acc: 0, last: 0 });
+  // One gesture switches one page. A trackpad swipe keeps sending wheel events
+  // while its momentum runs out, so the page stays locked until the events stop.
+  const wheel = useRef({ acc: 0, lastEvent: 0, locked: false });
   const onWheel = (e: React.WheelEvent) => {
     const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
     let el = e.target as HTMLElement | null;
@@ -329,11 +331,15 @@ export default function Notch() {
       el = el.parentElement;
     }
     const now = Date.now();
-    if (now - wheel.current.last < 380) return;
+    const gap = now - wheel.current.lastEvent;
+    wheel.current.lastEvent = now;
+    if (gap > 200) wheel.current = { acc: 0, lastEvent: now, locked: false };
+    if (wheel.current.locked) return;
     wheel.current.acc += delta;
     if (Math.abs(wheel.current.acc) >= 50) {
       go(wheel.current.acc > 0 ? 1 : -1);
-      wheel.current = { acc: 0, last: now };
+      wheel.current.locked = true;
+      wheel.current.acc = 0;
     }
   };
 

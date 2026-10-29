@@ -25,8 +25,8 @@ pub fn listen() {
     notify::emit("voice", json!({ "state": "listening" }));
     std::thread::spawn(|| {
         match recognize() {
-            Ok(text) if text.trim().is_empty() => fail("Didn't catch that"),
-            Ok(text) => {
+            Ok((text, status)) if text.trim().is_empty() => fail(&format!("Didn't catch that ({status:?})")),
+            Ok((text, _)) => {
                 let said = text.trim().to_string();
                 notify::emit("voice", json!({ "state": "heard", "text": said }));
                 let reply = actions::run(&said);
@@ -48,7 +48,7 @@ fn fail(message: &str) {
 
 /// One utterance using the default dictation grammar. Blocks until speech ends.
 /// The recognizer is always closed afterwards: an open one keeps Windows' speech bar on screen.
-fn recognize() -> windows::core::Result<String> {
+fn recognize() -> windows::core::Result<(String, SpeechRecognitionResultStatus)> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }
@@ -58,17 +58,18 @@ fn recognize() -> windows::core::Result<String> {
     outcome
 }
 
-fn recognize_with(recognizer: &SpeechRecognizer) -> windows::core::Result<String> {
+fn recognize_with(recognizer: &SpeechRecognizer) -> windows::core::Result<(String, SpeechRecognitionResultStatus)> {
     // No "did you mean" confirmation, and stop listening after a short silence so
     // the session can't hang around.
     recognizer.UIOptions()?.SetShowConfirmation(false)?;
     let timeouts = recognizer.Timeouts()?;
-    timeouts.SetInitialSilenceTimeout(TimeSpan { Duration: 5 * TICKS_PER_SECOND })?;
+    timeouts.SetInitialSilenceTimeout(TimeSpan { Duration: 8 * TICKS_PER_SECOND })?;
     timeouts.SetEndSilenceTimeout(TimeSpan { Duration: TICKS_PER_SECOND })?;
     recognizer.CompileConstraintsAsync()?.join()?;
     let result = recognizer.RecognizeAsync()?.join()?;
-    if result.Status()? != SpeechRecognitionResultStatus::Success {
-        return Ok(String::new());
+    let status = result.Status()?;
+    if status != SpeechRecognitionResultStatus::Success {
+        return Ok((String::new(), status));
     }
-    Ok(result.Text()?.to_string())
+    Ok((result.Text()?.to_string(), status))
 }

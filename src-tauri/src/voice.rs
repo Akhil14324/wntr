@@ -5,10 +5,14 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::json;
+use windows::Foundation::TimeSpan;
 use windows::Media::SpeechRecognition::{SpeechRecognitionResultStatus, SpeechRecognizer};
 use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
 
 use crate::{actions, notify};
+
+/// Windows timespans are counted in 100-nanosecond ticks.
+const TICKS_PER_SECOND: i64 = 10_000_000;
 
 static LISTENING: AtomicBool = AtomicBool::new(false);
 
@@ -43,11 +47,24 @@ fn fail(message: &str) {
 }
 
 /// One utterance using the default dictation grammar. Blocks until speech ends.
+/// The recognizer is always closed afterwards: an open one keeps Windows' speech bar on screen.
 fn recognize() -> windows::core::Result<String> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }
     let recognizer = SpeechRecognizer::new()?;
+    let outcome = recognize_with(&recognizer);
+    let _ = recognizer.Close();
+    outcome
+}
+
+fn recognize_with(recognizer: &SpeechRecognizer) -> windows::core::Result<String> {
+    // No "did you mean" confirmation, and stop listening after a short silence so
+    // the session can't hang around.
+    recognizer.UIOptions()?.SetShowConfirmation(false)?;
+    let timeouts = recognizer.Timeouts()?;
+    timeouts.SetInitialSilenceTimeout(TimeSpan { Duration: 5 * TICKS_PER_SECOND })?;
+    timeouts.SetEndSilenceTimeout(TimeSpan { Duration: TICKS_PER_SECOND })?;
     recognizer.CompileConstraintsAsync()?.join()?;
     let result = recognizer.RecognizeAsync()?.join()?;
     if result.Status()? != SpeechRecognitionResultStatus::Success {

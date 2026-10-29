@@ -1,3 +1,4 @@
+mod actions;
 mod calendar;
 mod clipboard;
 mod data;
@@ -12,6 +13,7 @@ mod settings;
 mod shelf;
 mod status;
 mod util;
+mod voice;
 mod weather;
 
 use serde_json::{Value, json};
@@ -19,7 +21,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_autostart::ManagerExt as _;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
 use tauri_plugin_updater::UpdaterExt;
 
 use util::{CmdResult, err, now_ms};
@@ -31,6 +33,8 @@ use util::{CmdResult, err, now_ms};
 fn register_hotkey(app: &AppHandle) {
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
+    // Voice commands. Registered here too, since unregister_all clears it.
+    let _ = gs.register("Ctrl+Alt+Space");
     let key = settings::get_str("general.hotkey");
     if !key.trim().is_empty()
         && let Err(e) = gs.register(key.as_str())
@@ -293,12 +297,17 @@ pub fn run() {
         ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        toggle_notch(app);
-                        if let Some(w) = notch::window(app) {
-                            let _ = w.set_focus();
-                        }
+                .with_handler(|app, shortcut, event| {
+                    if event.state != ShortcutState::Pressed {
+                        return;
+                    }
+                    if shortcut.matches(Modifiers::CONTROL | Modifiers::ALT, Code::Space) {
+                        voice::listen();
+                        return;
+                    }
+                    toggle_notch(app);
+                    if let Some(w) = notch::window(app) {
+                        let _ = w.set_focus();
                     }
                 })
                 .build(),

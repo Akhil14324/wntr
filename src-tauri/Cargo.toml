@@ -51,6 +51,7 @@ features = [
   "Foundation",
   "Foundation_Collections",
   "Media_Control",
+  "Media_SpeechRecognition",
   "Storage_Streams",
   "Networking_Connectivity",
   "Devices_Enumeration",

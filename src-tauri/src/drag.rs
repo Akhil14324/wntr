@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
-use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND, LPARAM, POINT, POINTL};
+use windows::Win32::Foundation::{DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, HANDLE, HGLOBAL, HWND, LPARAM, POINT, POINTL};
 use windows::Win32::System::Com::{DVASPECT_CONTENT, FORMATETC, IDataObject, STGMEDIUM, TYMED_HGLOBAL, TYMED_ISTREAM};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, GetClipboardSequenceNumber, OpenClipboard, RegisterClipboardFormatW,
@@ -21,17 +21,17 @@ use windows::Win32::System::DataExchange::{
 };
 use windows::Win32::System::Memory::{GMEM_MOVEABLE, GMEM_ZEROINIT, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock};
 use windows::Win32::System::Ole::{
-    CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE,
-    IDropTarget, IDropTarget_Impl, OleInitialize, RegisterDragDrop, ReleaseStgMedium, RevokeDragDrop,
+    CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE, DROPEFFECT_NONE, IDropSource, IDropSource_Impl, IDropTarget,
+    IDropTarget_Impl, OleInitialize, RegisterDragDrop, ReleaseStgMedium, RevokeDragDrop,
 };
-use windows::Win32::System::SystemServices::MODIFIERKEYS_FLAGS;
+use windows::Win32::System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS};
 use windows::Win32::UI::Shell::Common::ITEMIDLIST;
 use windows::Win32::UI::Shell::{
     DROPFILES, DragQueryFileW, HDROP, ILClone, ILCreateFromPathW, ILFindLastID, ILFree, ILRemoveLastID,
     SHCreateDataObject, SHDoDragDrop,
 };
 use windows::Win32::UI::WindowsAndMessaging::EnumChildWindows;
-use windows::core::{BOOL, PCWSTR, Ref, implement};
+use windows::core::{BOOL, HRESULT, PCWSTR, Ref, implement};
 
 use crate::util::{CmdResult, err, wide};
 
@@ -189,6 +189,26 @@ pub struct DragResult {
     pub effect: String,
 }
 
+/// Ends the drag when the mouse button is released, or cancels it on Escape.
+#[implement(IDropSource)]
+struct DragSource;
+
+impl IDropSource_Impl for DragSource_Impl {
+    fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
+        if fescapepressed.as_bool() {
+            DRAGDROP_S_CANCEL
+        } else if grfkeystate.0 & MK_LBUTTON.0 == 0 {
+            DRAGDROP_S_DROP
+        } else {
+            HRESULT(0)
+        }
+    }
+
+    fn GiveFeedback(&self, _dweffect: DROPEFFECT) -> HRESULT {
+        DRAGDROP_S_USEDEFAULTCURSORS
+    }
+}
+
 /// Runs a modal OLE drag on the UI thread. Must be called while the mouse
 /// button is still held (the UI calls it from `pointermove`).
 pub async fn drag_out(app: &AppHandle, payload: Payload) -> CmdResult<DragResult> {
@@ -219,14 +239,10 @@ pub async fn drag_out(app: &AppHandle, payload: Payload) -> CmdResult<DragResult
                 Payload::Files(_) => DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK,
                 Payload::Text(_) => DROPEFFECT_COPY,
             };
-            let effect = unsafe {
-                SHDoDragDrop(
-                    Some(HWND(hwnd as *mut _)),
-                    &obj,
-                    None::<&windows::Win32::System::Ole::IDropSource>,
-                    allowed,
-                )?
-            };
+            // A real drop source: SHDoDragDrop with no source gives the drag no way to
+            // know when the button is released, so it fails or never ends.
+            let source: IDropSource = DragSource.into();
+            let effect = unsafe { SHDoDragDrop(Some(HWND(hwnd as *mut _)), &obj, Some(&source), allowed)? };
             Ok(effect.0)
         })();
         DRAG_OUT.store(false, Ordering::Relaxed);
@@ -346,8 +362,10 @@ fn get_bytes(obj: &IDataObject, cf: u16, lindex: i32) -> Option<Vec<u8>> {
 
 fn wide_bytes_to_string(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
-        .chunks_exact(2)
-        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
         .take_while(|&c| c != 0)
         .collect();
     String::from_utf16_lossy(&units)

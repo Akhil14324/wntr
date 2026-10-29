@@ -34,7 +34,9 @@ fn register_hotkey(app: &AppHandle) {
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
     // Voice commands. Registered here too, since unregister_all clears it.
-    let _ = gs.register("Ctrl+Alt+Space");
+    if let Err(e) = gs.register("Ctrl+Alt+Space") {
+        notify::emit("error", json!({ "message": format!("Voice shortcut Ctrl+Alt+Space is in use by another app: {e}") }));
+    }
     let key = settings::get_str("general.hotkey");
     if !key.trim().is_empty()
         && let Err(e) = gs.register(key.as_str())

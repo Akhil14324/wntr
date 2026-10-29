@@ -202,6 +202,32 @@ export default function Notch() {
     [],
   );
 
+  // Voice commands report each step (voice.rs); errors from the backend land here too.
+  useEffect(() => {
+    const a = on<{ state: string; text?: string; reply?: string; message?: string }>("voice", (v) => {
+      const finished = v.state === "done" || v.state === "error";
+      const text =
+        v.state === "listening" ? "Listening…" : v.state === "heard" ? `Heard: “${v.text}”` : v.state === "done" ? `${v.text} → ${v.reply}` : v.message ?? "";
+      useUi.getState().showBanner(text, {
+        tone: v.state === "error" ? "error" : v.state === "done" ? "good" : "info",
+        ms: finished ? 6000 : 15000,
+      });
+      setExpanded(true);
+      if (finished) {
+        window.setTimeout(() => {
+          if (!insideRef.current) tryCollapse();
+        }, 4000);
+      }
+    });
+    const b = on<{ message: string }>("error", (e) => {
+      useUi.getState().showBanner(e.message, { tone: "error", ms: 8000 });
+    });
+    return () => {
+      a();
+      b();
+    };
+  }, [tryCollapse]);
+
   // Status popups (one at a time).
   useEffect(() => {
     let timer = 0;

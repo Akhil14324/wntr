@@ -1,21 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { CalendarDays, GlassWater, ListTodo, Pause, Play, Timer } from "lucide-react";
 import { call, on, type TaskLists } from "../lib/api";
+import { nextEvent, useEvents } from "../lib/calendar";
 import { clock, countdown, duration } from "../lib/format";
+import { COLUMNS, ROWS, useOverviewLayout, type WidgetId } from "../lib/overview";
 import { useNow, useStore } from "../lib/store";
 import { useUi } from "../notch/ui";
 import { Art, control } from "./Music";
-import { nextEvent, useEvents } from "./Calendar";
 import { useWater } from "./Water";
 import { WeatherIcon, useWeather } from "./Weather";
 
-function Card({ children, onClick, className = "" }: { children: React.ReactNode; onClick?: () => void; className?: string }) {
+function Card({
+  children,
+  onClick,
+  className = "",
+  style,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
-      className={`flex min-w-0 flex-col gap-1 overflow-hidden rounded-2xl bg-[var(--card)] p-2.5 text-left transition-colors hover:bg-[var(--card-hover)] ${className}`}
+      style={style}
+      className={`flex min-w-0 flex-col gap-1 overflow-hidden rounded-2xl bg-[var(--card)] p-2.5 text-left transition-colors ${
+        onClick ? "hover:bg-[var(--card-hover)]" : ""
+      } ${className}`}
     >
       {children}
     </div>
@@ -39,6 +53,7 @@ export default function NowPage() {
   const { events } = useEvents();
   const [water] = useWater();
   const weather = useWeather();
+  const layout = useOverviewLayout();
   const [tasks, setTasks] = useState<TaskLists | null>(null);
 
   useEffect(() => {
@@ -51,9 +66,21 @@ export default function NowPage() {
   const ev = nextEvent(events, now);
   const focusRemaining = focus ? (focus.running ? focus.endsAt - now : focus.remainingMs) : 0;
 
+  const place = (id: WidgetId): CSSProperties => ({
+    gridColumn: `span ${layout[id].w}`,
+    gridRow: `span ${layout[id].h}`,
+  });
+
   return (
-    <div className="grid h-full grid-cols-[1.35fr_1fr_1fr] grid-rows-2 gap-1.5">
-      <Card className="row-span-2 justify-between" onClick={() => setPage("music")}>
+    <div
+      className="grid h-full gap-1.5"
+      style={{
+        gridTemplateColumns: `repeat(${COLUMNS}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${ROWS}, minmax(0, 1fr))`,
+        gridAutoFlow: "dense",
+      }}
+    >
+      <Card style={place("now")} className="justify-between" onClick={() => setPage("music")}>
         <Label icon={null} text="Now playing" />
         {np?.title ? (
           <>
@@ -90,7 +117,7 @@ export default function NowPage() {
         )}
       </Card>
 
-      <Card onClick={() => setPage("todo")}>
+      <Card style={place("task")} onClick={() => setPage("todo")}>
         <Label icon={<ListTodo size={11} />} text="Next task" />
         <div className="truncate text-[12.5px] font-medium">{nextTask ? nextTask.title : "All clear"}</div>
         <div className="text-[10.5px] text-[var(--muted)]">
@@ -98,13 +125,13 @@ export default function NowPage() {
         </div>
       </Card>
 
-      <Card onClick={() => setPage("calendar")}>
+      <Card style={place("event")}>
         <Label icon={<CalendarDays size={11} />} text="Next event" />
         <div className="truncate text-[12.5px] font-medium">{ev ? ev.title : "No events"}</div>
         <div className="text-[10.5px] text-[var(--muted)]">{ev ? `${clock(new Date(ev.start))} · ${countdown(ev.start, now)}` : "—"}</div>
       </Card>
 
-      <Card onClick={() => setPage("focus")}>
+      <Card style={place("focus")} onClick={() => setPage("focus")}>
         <Label icon={<Timer size={11} />} text="Focus" />
         <div className="tabular text-[16px] font-semibold" style={{ color: focus?.running ? "var(--accent)" : "var(--fg)" }}>
           {duration(Math.max(0, focusRemaining))}
@@ -114,7 +141,7 @@ export default function NowPage() {
         </div>
       </Card>
 
-      <Card onClick={() => setPage("water")}>
+      <Card style={place("water")} onClick={() => setPage("water")}>
         <Label icon={<GlassWater size={11} />} text="Water" />
         <div className="text-[16px] font-semibold tabular">
           {water?.today ?? 0}

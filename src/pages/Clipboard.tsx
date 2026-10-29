@@ -50,8 +50,8 @@ export default function ClipboardPage() {
               role="button"
               tabIndex={0}
               onClick={() =>
-                call("clipboard_copy", { id: it.id })
-                  .then(() => showBanner("Copied", { tone: "good" }))
+                call<boolean>("clipboard_paste", { id: it.id })
+                  .then((pasted) => showBanner(pasted ? "Pasted" : "Copied — paste with Ctrl+V", { tone: "good" }))
                   .catch(bannerError)
               }
               className="group flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--card)]"

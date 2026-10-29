@@ -1,13 +1,19 @@
 //! Clipboard history. Watches the clipboard sequence number (no hooks, no key
 //! reading) and stores text and images locally.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 
 use rusqlite::params;
 use serde::Serialize;
+use windows::Win32::Foundation::HWND;
 use windows::Win32::System::DataExchange::{
     GetClipboardSequenceNumber, IsClipboardFormatAvailable, RegisterClipboardFormatW,
 };
+use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY, VK_CONTROL, VK_V,
+};
+use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow};
 use windows::core::PCWSTR;
 
 use crate::db::db;
@@ -15,6 +21,60 @@ use crate::util::{CmdResult, err, hash_bytes, now_ms, sleep_ms, sub_dir, wide};
 use crate::{notify, settings};
 
 static IGNORE_SEQ: AtomicU32 = AtomicU32::new(0);
+
+/// The last foreground window that belongs to another app (0 = none yet).
+static TARGET: AtomicIsize = AtomicIsize::new(0);
+
+/// Remember which app has focus, so a paste can go back to it.
+fn track_target() {
+    crate::util::spawn_loop("paste-target", || {
+        let me = std::process::id();
+        loop {
+            let fg = unsafe { GetForegroundWindow() };
+            if !fg.0.is_null() {
+                let mut pid = 0u32;
+                unsafe { GetWindowThreadProcessId(fg, Some(&mut pid)) };
+                if pid != me {
+                    TARGET.store(fg.0 as isize, Ordering::Relaxed);
+                }
+            }
+            sleep_ms(200);
+        }
+    });
+}
+
+/// Focus the remembered window and send Ctrl+V to it.
+fn paste_into(target: isize) {
+    let hwnd = HWND(target as *mut _);
+    unsafe {
+        // Windows only lets the foreground change hands from a thread that is
+        // attached to the current foreground input; attach briefly to be sure.
+        let me = GetCurrentThreadId();
+        let other = GetWindowThreadProcessId(hwnd, None);
+        let attached = other != 0 && other != me && AttachThreadInput(me, other, true).as_bool();
+        let _ = SetForegroundWindow(hwnd);
+        if attached {
+            let _ = AttachThreadInput(me, other, false);
+        }
+    }
+    sleep_ms(80);
+    let key = |vk: VIRTUAL_KEY, up: bool| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: vk,
+                wScan: 0,
+                dwFlags: if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let inputs = [key(VK_CONTROL, false), key(VK_V, false), key(VK_V, true), key(VK_CONTROL, true)];
+    unsafe {
+        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+}
 
 /// Mark a clipboard change as ours so it is not recorded again.
 pub fn ignore_seq(seq: u32) {
@@ -139,6 +199,7 @@ fn trim() {
 }
 
 pub fn start() {
+    track_target();
     crate::util::spawn_loop("clipboard-watch", || {
         let mut last = unsafe { GetClipboardSequenceNumber() };
         loop {
@@ -201,6 +262,25 @@ pub fn clipboard_list(query: Option<String>) -> Vec<ClipItem> {
 
 #[tauri::command]
 pub fn clipboard_copy(id: i64) -> CmdResult<()> {
+    put_on_clipboard(id)
+}
+
+/// Copy an item and paste it into the app the user was last working in.
+/// Returns false when there was no such app, so the item was only copied.
+#[tauri::command]
+pub async fn clipboard_paste(id: i64) -> CmdResult<bool> {
+    put_on_clipboard(id)?;
+    let target = TARGET.load(Ordering::Relaxed);
+    if target == 0 {
+        return Ok(false);
+    }
+    tauri::async_runtime::spawn_blocking(move || paste_into(target))
+        .await
+        .map_err(err)?;
+    Ok(true)
+}
+
+fn put_on_clipboard(id: i64) -> CmdResult<()> {
     let (kind, text, image): (String, Option<String>, Option<String>) = db()
         .query_row(
             "SELECT kind, text, image_path FROM clipboard_items WHERE id = ?1",

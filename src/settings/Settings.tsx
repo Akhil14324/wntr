@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -10,6 +10,7 @@ import {
   GlassWater,
   Info,
   Keyboard,
+  LayoutGrid,
   ListTodo,
   Moon,
   Music,
@@ -23,12 +24,14 @@ import {
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { call, errText, on, type Calendar } from "../lib/api";
 import { relativeDateTime } from "../lib/format";
+import { COLUMNS, OVERVIEW_DEFAULTS, ROWS, WIDGETS, useOverviewLayout, type WidgetId, type WidgetSize } from "../lib/overview";
 import { useSetting, useStore } from "../lib/store";
 import { Toggle } from "../components/ui";
 import { PAGES } from "../notch/pages";
 
 const SECTIONS = [
   { id: "general", label: "General", icon: Settings2 },
+  { id: "overview", label: "Overview", icon: LayoutGrid },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "music", label: "Music & lyrics", icon: Music },
   { id: "focus", label: "Focus", icon: Timer },
@@ -750,8 +753,84 @@ function AboutSection() {
   );
 }
 
+function OverviewPreview({ layout }: { layout: Record<WidgetId, WidgetSize> }) {
+  return (
+    <div
+      className="grid h-[120px] gap-1.5 rounded-xl bg-black/40 p-1.5"
+      style={{
+        gridTemplateColumns: `repeat(${COLUMNS}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${ROWS}, minmax(0, 1fr))`,
+        gridAutoFlow: "dense",
+      }}
+    >
+      {WIDGETS.map((w) => (
+        <div
+          key={w.id}
+          className="flex min-w-0 items-center justify-center truncate rounded-lg px-1 text-[11px] font-medium"
+          style={{
+            gridColumn: `span ${layout[w.id].w}`,
+            gridRow: `span ${layout[w.id].h}`,
+            background: "color-mix(in srgb, var(--accent) 25%, transparent)",
+          }}
+        >
+          {w.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WidgetHeightSelect({ id }: { id: WidgetId }) {
+  const h = useOverviewLayout()[id].h;
+  const set = useSet();
+  return (
+    <select className="field min-w-[150px]" value={h} onChange={(e) => set(`overview.widgets.${id}.h`, Number(e.target.value))}>
+      <option value={1}>Half height</option>
+      <option value={2}>Full height</option>
+    </select>
+  );
+}
+
+function OverviewSection() {
+  const layout = useOverviewLayout();
+  const set = useSet();
+  return (
+    <>
+      <Group title="Preview">
+        <div className="py-3">
+          <OverviewPreview layout={layout} />
+        </div>
+      </Group>
+      <Group title="Widget sizes">
+        {WIDGETS.map((w) => (
+          <Fragment key={w.id}>
+            <NumberRow
+              path={`overview.widgets.${w.id}.w`}
+              label={`${w.label}: width`}
+              hint={`Out of ${COLUMNS} columns.`}
+              min={2}
+              max={COLUMNS}
+              fallback={OVERVIEW_DEFAULTS[w.id].w}
+              suffix="cols"
+            />
+            <Row label={`${w.label}: height`}>
+              <WidgetHeightSelect id={w.id} />
+            </Row>
+          </Fragment>
+        ))}
+        <Row label="Reset layout" hint="Puts every widget back to its original size.">
+          <button className="btn" onClick={() => set("overview.widgets", OVERVIEW_DEFAULTS)}>
+            Reset
+          </button>
+        </Row>
+      </Group>
+    </>
+  );
+}
+
 const CONTENT: Record<string, () => React.ReactNode> = {
   general: General,
+  overview: OverviewSection,
   appearance: Appearance,
   music: MusicSection,
   focus: FocusSection,

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { MicVocal, Minus, Plus, RefreshCw, Search, X } from "lucide-react";
-import { call, errText, type Lyrics } from "../lib/api";
+import { Minus, Plus, RefreshCw, Search, X } from "lucide-react";
+import { call, errText, type Lyrics, type NowPlaying } from "../lib/api";
 import { duration } from "../lib/format";
 import { lineAt } from "../lib/lrc";
 import { applyLyrics, loadLyrics, positionAt, useNow, useSetting, useStore } from "../lib/store";
 import { Empty } from "../components/ui";
 import { useUi } from "../notch/ui";
-import { Art, Controls, control } from "./Music";
+import { control } from "./Music";
 
 interface Hit {
   id: number;
@@ -96,8 +96,8 @@ function SearchPanel({ initial, onClose }: { initial: string; onClose: () => voi
   );
 }
 
-export default function LyricsPage() {
-  const np = useStore((s) => s.media.current);
+/** Synced lyrics for the current track, shown inline on the music page. */
+export function LyricsView({ np }: { np: NowPlaying }) {
   const lyrics = useStore((s) => s.lyrics);
   const offsets = useSetting<Record<string, number>>("music.lyricOffsets", {});
   const setSettings = useStore((s) => s.setSettings);
@@ -117,44 +117,30 @@ export default function LyricsPage() {
     c.scrollTo({ top: el.offsetTop - c.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
   }, [idx]);
 
-  if (!np || !np.title) {
-    return <Empty icon={<MicVocal size={28} />} title="Nothing playing" hint="Lyrics appear here when a song plays." />;
-  }
-
   const setOffset = (v: number) => {
     const clamped = Math.max(-5, Math.min(5, Math.round(v * 10) / 10));
     void setSettings({ music: { lyricOffsets: { [lyrics.key]: clamped } } });
   };
 
   return (
-    <div className="relative flex h-full gap-4">
-      <div className="flex w-[150px] shrink-0 flex-col justify-center gap-1.5">
-        <Art np={np} size={58} />
-        <div className="min-w-0">
-          <div className="truncate text-[13px] font-semibold">{np.title}</div>
-          <div className="truncate text-[11.5px] text-[var(--muted)]">{np.artist}</div>
-        </div>
-        <div className="-ml-2">
-          <Controls np={np} size={0.8} />
-        </div>
-        <div className="flex items-center gap-1 text-[10.5px] text-[var(--muted)]">
-          <button className="icon-btn h-5 w-5" onClick={() => setOffset(offset - 0.5)} title="Lyrics earlier" aria-label="Lyrics earlier">
-            <Minus size={11} />
-          </button>
-          <span className="w-12 text-center tabular" title="Lyric offset for this song">
-            {offset > 0 ? "+" : ""}
-            {offset.toFixed(1)} s
-          </span>
-          <button className="icon-btn h-5 w-5" onClick={() => setOffset(offset + 0.5)} title="Lyrics later" aria-label="Lyrics later">
-            <Plus size={11} />
-          </button>
-          <button className="icon-btn ml-auto h-5 w-5" onClick={() => setSearching(true)} title="Search lyrics" aria-label="Search lyrics">
-            <Search size={11} />
-          </button>
-        </div>
+    <div className="relative flex min-h-0 flex-1 flex-col gap-1">
+      <div className="flex items-center gap-1 text-[10.5px] text-[var(--muted)]">
+        <button className="icon-btn h-5 w-5" onClick={() => setOffset(offset - 0.5)} title="Lyrics earlier" aria-label="Lyrics earlier">
+          <Minus size={11} />
+        </button>
+        <span className="w-12 text-center tabular" title="Lyric offset for this song">
+          {offset > 0 ? "+" : ""}
+          {offset.toFixed(1)} s
+        </span>
+        <button className="icon-btn h-5 w-5" onClick={() => setOffset(offset + 0.5)} title="Lyrics later" aria-label="Lyrics later">
+          <Plus size={11} />
+        </button>
+        <button className="icon-btn ml-auto h-5 w-5" onClick={() => setSearching(true)} title="Search lyrics" aria-label="Search lyrics">
+          <Search size={11} />
+        </button>
       </div>
 
-      <div className="relative min-w-0 flex-1">
+      <div className="relative min-h-0 flex-1">
         {lyrics.status === "loading" && <Empty title="Finding lyrics…" />}
         {(lyrics.status === "none" || lyrics.status === "error") && (
           <Empty title={lyrics.status === "error" ? "Couldn't reach LRCLIB" : "No synced lyrics found"} hint="Try a manual search with a different title or artist.">

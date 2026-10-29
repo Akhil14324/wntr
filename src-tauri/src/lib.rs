@@ -377,6 +377,7 @@ pub fn run() {
             shelf::shelf_thumb,
             clipboard::clipboard_list,
             clipboard::clipboard_copy,
+            clipboard::clipboard_paste,
             clipboard::clipboard_pin,
             clipboard::clipboard_delete,
             clipboard::clipboard_clear,

@@ -20,8 +20,8 @@ pub fn defaults() -> Value {
             "hideInFullscreen": true,
             "expandDelayMs": 120,
             "collapseDelayMs": 450,
-            "pages": ["now", "music", "lyrics", "shelf", "focus", "water", "todo", "calendar",
-                      "notes", "clipboard", "habits", "launcher", "weather", "timers", "stats"]
+            "pages": ["now", "music", "shelf", "focus", "water", "todo",
+                      "notes", "clipboard", "launcher", "weather", "timers", "stats"]
         },
         "appearance": {
             "theme": "dark",
@@ -48,6 +48,15 @@ pub fn defaults() -> Value {
             "start": "09:00",
             "end": "22:00",
             "reminders": true
+        },
+        "overview": {
+            "widgets": {
+                "now": { "w": 4, "h": 2 },
+                "task": { "w": 3, "h": 1 },
+                "event": { "w": 3, "h": 1 },
+                "focus": { "w": 3, "h": 1 },
+                "water": { "w": 3, "h": 1 }
+            }
         },
         "tasks": { "defaultReminderMin": 0, "snooze": [5, 10, 30] },
         "calendar": { "alertMin": 10, "refreshMin": 15 },

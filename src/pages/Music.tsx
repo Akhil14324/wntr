@@ -16,7 +16,6 @@ import { duration } from "../lib/format";
 import { positionAt, useNow, useSetting, useStore } from "../lib/store";
 import { Empty } from "../components/ui";
 import { bannerError, useUi } from "../notch/ui";
-import { LyricsView } from "./Lyrics";
 
 export function control(action: string, positionMs?: number) {
   return call("media_control", { action, positionMs }).catch(bannerError);
@@ -157,7 +156,7 @@ function SessionPicker() {
 
 export default function MusicPage() {
   const np = useStore((s) => s.media.current);
-  const [showLyrics, setShowLyrics] = useState(false);
+  const setPage = useUi((s) => s.setPage);
   if (!np || !np.title) {
     return (
       <Empty
@@ -167,40 +166,6 @@ export default function MusicPage() {
       />
     );
   }
-  const lyricsButton = (
-    <button
-      className="icon-btn"
-      style={showLyrics ? { color: "var(--accent)" } : undefined}
-      onClick={() => setShowLyrics((v) => !v)}
-      aria-label="Lyrics"
-      aria-pressed={showLyrics}
-      title="Lyrics"
-    >
-      <MessageSquareQuote size={18} />
-    </button>
-  );
-
-  if (showLyrics) {
-    return (
-      <div className="flex h-full flex-col gap-2">
-        <div className="flex items-center gap-2.5">
-          <Art np={np} size={40} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] leading-tight font-semibold">{np.title}</div>
-            <div className="truncate text-[11.5px] text-[var(--muted)]">{np.artist || np.album}</div>
-          </div>
-          {lyricsButton}
-        </div>
-        <LyricsView np={np} />
-        <Progress np={np} compact />
-        <div className="flex items-center justify-between">
-          <Controls np={np} size={0.8} />
-          <VolumeControl />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full flex-col justify-center gap-2.5">
       <div className="flex items-center gap-3.5">
@@ -215,7 +180,9 @@ export default function MusicPage() {
       </div>
       <Progress np={np} />
       <div className="flex items-center justify-between">
-        {lyricsButton}
+        <button className="icon-btn" onClick={() => setPage("lyrics")} aria-label="Lyrics" title="Lyrics">
+          <MessageSquareQuote size={18} />
+        </button>
         <Controls np={np} />
         <VolumeControl />
       </div>

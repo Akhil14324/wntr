@@ -20,7 +20,7 @@ pub fn defaults() -> Value {
             "hideInFullscreen": true,
             "expandDelayMs": 120,
             "collapseDelayMs": 450,
-            "pages": ["now", "music", "shelf", "focus", "water", "todo",
+            "pages": ["now", "music", "lyrics", "shelf", "focus", "water", "todo",
                       "notes", "clipboard", "launcher", "weather", "timers", "stats"]
         },
         "appearance": {

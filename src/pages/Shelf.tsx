@@ -89,7 +89,8 @@ function Card({
       className="relative flex h-[104px] w-[86px] shrink-0 flex-col items-center gap-1.5 rounded-[14px] p-1.5 transition-colors"
       style={{
         background: selected ? "color-mix(in srgb, var(--accent) 22%, transparent)" : "var(--card)",
-        outline: selected ? "1.5px solid var(--accent)" : "none",
+        // Inset ring: an outset outline would be clipped by the strip's overflow.
+        boxShadow: selected ? "inset 0 0 0 1.5px var(--accent)" : "none",
       }}
     >
       <div className="flex h-[60px] w-[72px] items-center justify-center overflow-hidden rounded-[9px]">
